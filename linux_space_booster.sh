@@ -1353,7 +1353,6 @@ generate_report() {
         echo -e "${info_icon} ${BLUE}${BOLD}Nice!${NC} ${BLUE}Your system was already clean - no cleanup needed.${NC}"
     fi
     
-    # Log completion message
     
     echo -e "${GREEN}"
     cat << "EOF"
@@ -1388,7 +1387,6 @@ show_menu() {
     local shield_icon=$(get_icon "SHIELD")
     local info_icon=$(get_icon "INFO")
     
-    # Use a simple, properly aligned ASCII art
     local ascii_art
     ascii_art=$(cat <<'EOF'
 
@@ -1405,9 +1403,6 @@ show_menu() {
         /_|_________|_\     [*] Deleting cache...
           ||  ||  ||        [*] Cleaning logs...
           []  []  []        [*] Removing junk...
-
-           🤖 Bot says: "All clean!"
-           ✅ Disk space recovered!
 
 EOF
 )
@@ -1563,7 +1558,7 @@ EOF
                 
                 # Show dry run header
                 echo -e "\n${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-                echo -e "${BLUE}║${WHITE}${BOLD}                    DRY RUN MODE - NO CHANGES WILL BE MADE                   ${NC}${BLUE}║${NC}"
+                echo -e "${BLUE}║${WHITE}${BOLD}                    DRY RUN MODE - NO CHANGES WILL BE MADE                    ${NC}${BLUE}║${NC}"
                 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
                 echo
                 
@@ -1911,7 +1906,6 @@ cleanup_selected_user() {
     echo -e "\n${GREEN}✅ User cleanup completed for: ${BOLD}$username${NC}"
     echo -e "${GREEN}💾 Space freed: ${BOLD}$(bytes_to_human $total_cleaned)${NC}"
     
-    # Show what was NOT cleaned (safety information)
     echo -e "\n${BOLD}${BLUE}🛡️  PROTECTED DATA (NOT CLEANED):${NC}"
     echo -e "${GREEN}✓ Documents, Pictures, Videos, Music${NC}"
     echo -e "${GREEN}✓ Desktop files and folders${NC}"
@@ -1938,7 +1932,7 @@ show_help() {
     clear
     show_header
     echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${WHITE}${BOLD}                              HELP & SAFETY GUIDE                               ${NC}${CYAN}║${NC}"
+    echo -e "${CYAN}║${WHITE}${BOLD}                              HELP & SAFETY GUIDE                              ${NC}${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${WHITE}${BOLD}COMMAND LINE USAGE:${NC}"
