@@ -72,12 +72,18 @@ sudo ./linux-space-booster
 
 | Option | Description |
 |--------|-------------|
-| `--quick` | Quick safe cleanup (no confirmations) |
+| `--quick` | Quick safe cleanup (no confirmations; does not remove packages or Snap revisions) |
 | `--advanced` | Advanced cleanup with confirmations |
 | `--user-only` | Clean only user cache files (no root required) |
 | `--dry-run` | Preview what would be cleaned without making changes |
 | `--force` | Skip all confirmations (use with caution) |
+| `--analyze` | Show disk usage and cleanup opportunities without changing files |
+| `--version` | Display the installed script version |
 | `--help` | Display help information |
+
+Flags may be supplied in any valid order; for example, `--force --quick` and
+`--quick --force` are equivalent. `--json` is currently accepted only with
+`--analyze`; structured JSON output is planned for a later release.
 
 ### Examples
 
@@ -101,7 +107,7 @@ sudo linux-space-booster --dry-run
 |----------|----------------|------------------|
 | **APT Cache** | Package files (.deb), orphaned packages | Package lists, repository data |
 | **System Logs** | Old log files (30+ days), rotated logs | Current active logs |
-| **Temporary Files** | Files in /tmp older than 7 days | Recent temp files, active temp files |
+| **Temporary Files** | Selected temporary files and files in /tmp older than 3 days | Recent temp files, active temp files |
 | **User Caches** | Browser caches, thumbnail caches | User data, configurations |
 | **PostgreSQL** | Old log files (30+ days) | Database data, current logs, configuration |
 | **Metasploit** | Old log files (30+ days) | Scan data, loot, exploits, configuration |
