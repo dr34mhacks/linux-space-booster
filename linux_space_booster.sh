@@ -2259,7 +2259,110 @@ user_only_cleanup() {
 # Analyze (non-destructive)
 # =============================================================================
 
+json_escape() {
+    local value="$1"
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '%s' "$value"
+}
+
+get_filesystem_stats() {
+    local stats
+    stats=$(df -P -B1 / 2>/dev/null | awk 'NR == 2 {print $2, $3, $4, $5, $6}')
+    if [[ "$stats" =~ ^[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+%[[:space:]]+.+$ ]]; then
+        printf '%s\n' "$stats"
+        return 0
+    fi
+
+    stats=$(df -P -k / 2>/dev/null | awk 'NR == 2 {print $2 * 1024, $3 * 1024, $4 * 1024, $5, $6}')
+    [[ "$stats" =~ ^[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+%[[:space:]]+.+$ ]] || return 1
+    printf '%s\n' "$stats"
+}
+
+get_largest_directories() {
+    local line size path
+    while IFS=$'\t' read -r size path; do
+        [[ "$size" =~ ^[0-9]+$ && -n "$path" ]] || continue
+        printf '%s\t%s\n' "$size" "$path"
+    done < <(
+        du -x -B1 --max-depth=1 / 2>/dev/null |
+            awk '{
+                size=$1
+                path=$0
+                sub(/^[0-9]+[[:space:]]+/, "", path)
+                if (size ~ /^[0-9]+$/ && path != "/") print size "\t" path
+            }' |
+            sort -n -r |
+            head -10
+    )
+}
+
+collect_module_analysis() {
+    local name
+    for name in "${MODULE_NAMES[@]}"; do
+        module_analyze "$name"
+    done
+}
+
+emit_analysis_json() {
+    local filesystem fs_size fs_used fs_available fs_percent fs_target
+    filesystem=$(get_filesystem_stats) || {
+        log_message "ERROR" "Unable to inspect the root filesystem"
+        return "$EXIT_ERROR"
+    }
+    read -r fs_size fs_used fs_available fs_percent fs_target <<< "$filesystem"
+
+    local module_rows=()
+    local name status estimate
+    while IFS=$'\t' read -r name status estimate; do
+        [[ -n "$name" ]] || continue
+        module_rows+=("$name"$'\t'"$status"$'\t'"$estimate")
+    done < <(collect_module_analysis)
+
+    local total_estimate=0
+    for name in "${module_rows[@]}"; do
+        IFS=$'\t' read -r _ status estimate <<< "$name"
+        [[ "$status" == "available" ]] || continue
+        total_estimate=$((total_estimate + estimate))
+    done
+
+    printf '{\n'
+    printf '  "filesystem": {"path": "%s", "size_bytes": %s, "used_bytes": %s, "free_bytes": %s, "usage_percent": %s},\n' \
+        "$(json_escape "$fs_target")" "${fs_size:-0}" "${fs_used:-0}" "${fs_available:-0}" "${fs_percent%%%}"
+    printf '  "directories": ['
+    local first=true
+    local directory_size directory_path
+    while IFS=$'\t' read -r directory_size directory_path; do
+        [[ -n "$directory_path" ]] || continue
+        [[ "$first" == true ]] || printf ','
+        printf '\n    {"path": "%s", "size_bytes": %s}' \
+            "$(json_escape "$directory_path")" "$directory_size"
+        first=false
+    done < <(get_largest_directories)
+    if [[ "$first" == false ]]; then printf '\n  '; fi
+    printf '],\n  "modules": ['
+    first=true
+    local row
+    for row in "${module_rows[@]}"; do
+        IFS=$'\t' read -r name status estimate <<< "$row"
+        [[ "$first" == true ]] || printf ','
+        printf '\n    {"name": "%s", "status": "%s", "estimate_bytes": %s}' \
+            "$(json_escape "$name")" "$(json_escape "$status")" "$estimate"
+        first=false
+    done
+    if [[ "$first" == false ]]; then printf '\n  '; fi
+    printf '],\n  "total_estimate_bytes": %s\n}\n' "$total_estimate"
+}
+
 run_analyze() {
+    if [[ "$JSON_OUTPUT" == true ]]; then
+        emit_analysis_json
+        return "$?"
+    fi
+
     echo -e "\n${BOLD}${CYAN}SPACE ANALYSIS${NC}"
     echo
 
@@ -2268,44 +2371,26 @@ run_analyze() {
 
     # Largest directories
     echo -e "\n${BOLD}${PURPLE}Largest Directories:${NC}"
-    echo -e "${CYAN}Scanning (this may take a moment)...${NC}"
-    du -h --max-depth=1 / 2>/dev/null | sort -hr | head -10 | \
-        while IFS=$'\t' read -r size path; do
-            echo -e "  ${YELLOW}$size${NC}\t${path}"
-        done
+    echo -e "${CYAN}Scanning (permission-denied paths are skipped)...${NC}"
+    local directory_size directory_path
+    while IFS=$'\t' read -r directory_size directory_path; do
+        printf '  %s%s%s\t%s\n' "$YELLOW" \
+            "$(bytes_to_human "$directory_size")" "$NC" "$directory_path"
+    done < <(get_largest_directories)
 
     # Cleanup opportunities
     echo -e "\n${BOLD}${PURPLE}Cleanup Opportunities:${NC}"
     local total_potential=0
-
-    local package_cache_path
-    package_cache_path=$(package_manager_cache_path)
-    if [[ -n "$package_cache_path" ]]; then
-        local package_cache_size
-        package_cache_size=$(get_dir_size "$package_cache_path")
-        echo -e "  $(package_manager_name) cache:      ${CYAN}$(bytes_to_human "$package_cache_size")${NC}"
-        total_potential=$((total_potential + package_cache_size))
-    fi
-
-    if command -v journalctl >/dev/null 2>&1; then
-        local journal_info
-        journal_info=$(journalctl --disk-usage 2>/dev/null | grep -o '[0-9.]*[KMGT]B' || echo "0B")
-        echo -e "  Journal:            ${CYAN}$journal_info${NC}"
-    fi
-
-    local tmp_size
-    tmp_size=$(get_dir_size "/tmp")
-    echo -e "  Temp files:         ${CYAN}$(bytes_to_human "$tmp_size")${NC}"
-    total_potential=$((total_potential + tmp_size))
-
-    if [[ -d "$HOME/.cache" ]]; then
-        local cache_size
-        cache_size=$(get_dir_size "$HOME/.cache")
-        echo -e "  User cache:         ${CYAN}$(bytes_to_human "$cache_size")${NC}"
-        total_potential=$((total_potential + cache_size))
-    fi
-
-    echo -e "\n  ${BOLD}Potential recovery:   ${GREEN}~$(bytes_to_human $total_potential)${NC}"
+    local module_name module_status module_estimate
+    while IFS=$'\t' read -r module_name module_status module_estimate; do
+        [[ -n "$module_name" ]] || continue
+        printf '  %-22s %s%s%s (%s)\n' "$module_name" "$CYAN" \
+            "$(bytes_to_human "$module_estimate")" "$NC" "$module_status"
+        if [[ "$module_status" == "available" ]]; then
+            total_potential=$((total_potential + module_estimate))
+        fi
+    done < <(collect_module_analysis)
+    echo -e "\n  ${BOLD}Potential recovery estimate:${NC} ${GREEN}~$(bytes_to_human "$total_potential")${NC}"
     if [[ "$PACKAGE_MANAGER" == "none" ]]; then
         echo -e "\n${YELLOW}No supported package manager was detected; package cleanup is unavailable.${NC}"
     fi
@@ -2331,6 +2416,7 @@ show_help() {
     echo -e "  ${GREEN}sudo $0 --dry-run${NC}          # Preview cleanup without changes"
     echo -e "  ${GREEN}sudo $0 --force --quick${NC}    # Skip confirmations (use with caution)"
     echo -e "  ${GREEN}$0 --analyze${NC}               # Analyze disk usage (no changes)"
+    echo -e "  ${GREEN}$0 --analyze --json${NC}         # Machine-readable analysis"
     echo -e "  ${GREEN}$0 --version${NC}               # Show version"
     echo
     echo -e "${WHITE}${BOLD}REGISTERED CLEANUP MODULES:${NC}"
@@ -2488,13 +2574,9 @@ parse_args() {
 }
 
 validate_args() {
-    # --json is currently only meaningful with --analyze
-    if [[ "$JSON_OUTPUT" == true && "$MODE" != "analyze" ]]; then
-        log_message "WARNING" "--json is currently only supported with --analyze"
-    fi
-
     # --force with help/version is harmless, don't error
     # --dry-run with any mode is fine
+    :
 }
 
 run_preflight() {
@@ -2524,11 +2606,19 @@ run_preflight() {
         detect_init_system >/dev/null
         detect_available_tools >/dev/null
         detect_package_manager >/dev/null
-        show_header
-        if [[ "$MODE" == "user-only" ]]; then
-            preflight_checks "--user-only"
+        if [[ "$MODE" == "analyze" && "$JSON_OUTPUT" == true ]]; then
+            # JSON output must contain only the documented payload. Analysis
+            # remains useful on partially provisioned hosts, so missing
+            # optional tools are reported by module status instead of turning
+            # preflight warnings into mixed output.
+            :
         else
-            preflight_checks ""
+            show_header
+            if [[ "$MODE" == "user-only" ]]; then
+                preflight_checks "--user-only"
+            else
+                preflight_checks ""
+            fi
         fi
     fi
 }

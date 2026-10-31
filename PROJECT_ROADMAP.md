@@ -25,7 +25,7 @@ adding more cleanup targets.
 
 ### Work items
 
-1. Separate argument parsing from execution.
+1. ✅ Separate argument parsing from execution.
    - Parse all flags first, validate combinations, then run preflight and the
      chosen operation.
    - Retain the existing commands (`--quick`, `--advanced`, `--user-only`,
@@ -33,11 +33,11 @@ adding more cleanup targets.
      behaviour.
    - Establish the new command model: `--analyze`, `--clean`, `--profile`,
      `--category`, `--json`, `--version`, and `--help`.
-2. Define a single privilege policy.
+2. ✅ Define a single privilege policy.
    - Root-only system cleanup runs as root and must not call `sudo` internally.
    - User-only and analysis commands work without root where possible.
    - Return a distinct insufficient-privileges exit code when required.
-3. Create the deletion/safety API.
+3. ✅ Create the deletion/safety API.
    - Add helpers such as `safe_remove_file`, `safe_remove_dir_contents`, and
      `safe_find_delete`.
    - Validate canonical paths, reject protected locations, prevent empty or
@@ -45,28 +45,28 @@ adding more cleanup targets.
    - Replace direct `rm`, destructive `find`, and unsafe wildcard operations.
    - Ensure directory cleanup includes hidden entries without deleting the
      directory itself.
-4. Standardise module behaviour.
+4. ✅ Standardise module behaviour.
    - Each module must discover candidates, estimate reclaimable space, preview,
      execute through the safety API, and report success/failure consistently.
    - Record per-module estimates separately from filesystem-level recovery.
-5. Improve reports and exit handling.
+5. ✅ Improve reports and exit handling.
    - Measure free space before and after on the affected filesystem using
      `df`; present that as actual recovered space.
    - Use exit codes: `0` success, `1` general error, `2` invalid arguments,
      `3` insufficient privileges, `4` unsupported system, `5` partial failure,
      `6` cleanup failure.
-6. Establish test and shell-quality checks.
+6. ✅ Establish test and shell-quality checks.
    - Add ShellCheck and `bash -n` checks.
    - Add tests for argument parsing and safety helpers, including empty paths,
      hidden files, protected paths, dry-run, and paths containing spaces.
 
 ### Completion criteria
 
-- No cleanup module invokes `sudo`, `rm`, or destructive `find` directly.
-- `--dry-run` changes no files and displays the intended actions.
-- Options work reliably in any order when their combination is valid.
-- Actual recovered space is shown from filesystem free-space measurements.
-- The test suite and static shell checks pass.
+- ✅ No cleanup module invokes `sudo`, `rm`, or destructive `find` directly.
+- ✅ `--dry-run` changes no files and displays the intended actions.
+- ✅ Options work reliably in any order when their combination is valid.
+- ✅ Actual recovered space is shown from filesystem free-space measurements.
+- ✅ The test suite and static shell checks pass.
 
 ## Phase 2 — Platform detection and package-manager abstraction
 
@@ -74,20 +74,20 @@ adding more cleanup targets.
 
 ### Work items
 
-1. Detect OS, init system, available tools, and package manager without
+1. ✅ Detect OS, init system, available tools, and package manager without
    assuming they are installed.
-2. Introduce package-manager adapters for APT, DNF, Pacman, and APK.
-3. Move Debian-specific features (DPKG, APT cache, and kernel handling) behind
+2. ✅ Introduce package-manager adapters for APT, DNF, Pacman, and APK.
+3. ✅ Move Debian-specific features (DPKG, APT cache, and kernel handling) behind
    explicit capability checks.
-4. Define a clear unsupported/degraded-mode message when no adapter exists.
-5. Test each adapter in a container or VM fixture where practical.
+4. ✅ Define a clear unsupported/degraded-mode message when no adapter exists.
+5. ✅ Test each adapter in a container or VM fixture where practical.
 
 ### Completion criteria
 
-- Unsupported commands are skipped with a reason, never executed blindly.
-- APT remains fully functional; other supported adapters expose only verified
+- ✅ Unsupported commands are skipped with a reason, never executed blindly.
+- ✅ APT remains fully functional; other supported adapters expose only verified
   safe operations.
-- README support claims match the tested platforms.
+- ✅ README support claims match the tested platforms.
 
 ## Phase 3 — Modular cleanup engine
 
@@ -95,21 +95,21 @@ adding more cleanup targets.
 
 ### Work items
 
-1. Split core functionality into `lib/` (CLI, logging, safety, detection,
+1. ✅ Split core functionality into `lib/` (CLI, logging, safety, detection,
    reporting) and cleanup modules into `modules/`.
-2. Give each module metadata: name, category, required privilege, risk level,
+2. ✅ Give each module metadata: name, category, required privilege, risk level,
    availability check, estimate function, and execute function.
-3. Migrate existing APT, logs/journal, temporary files, browser caches,
+3. ✅ Migrate existing APT, logs/journal, temporary files, browser caches,
    thumbnails, Snap, PostgreSQL, Metasploit, Wireshark, and user caches one at
    a time without changing their intended scope.
-4. Introduce a module registry so the CLI and interactive UI list the same
+4. ✅ Introduce a module registry so the CLI and interactive UI list the same
    capabilities.
 
 ### Completion criteria
 
-- The entry script orchestrates rather than contains cleanup implementation.
-- Every module can be analysed, dry-run, and run independently.
-- Migrated module behaviour is covered by tests or documented manual checks.
+- ✅ The entry script orchestrates rather than contains cleanup implementation.
+- ✅ Every module can be analysed, dry-run, and run independently.
+- ✅ Migrated module behaviour is covered by tests or documented manual checks.
 
 ## Phase 4 — Analyze-first experience
 
@@ -118,19 +118,20 @@ anything.
 
 ### Work items
 
-1. Add `--analyze` as a non-destructive command.
-2. Report filesystem capacity/free space, largest top-level directories, and
+1. ✅ Add `--analyze` as a non-destructive command.
+2. ✅ Report filesystem capacity/free space, largest top-level directories, and
    available cleanup opportunities with estimates.
-3. Add an exact-action `--dry-run` report grouped by module.
+3. ✅ Add an exact-action `--dry-run` report grouped by module.
 4. Add `--json` for analysis and cleanup summaries with byte values and module
-   statuses suitable for automation.
-5. Ensure analysis handles permission-denied paths gracefully.
+   statuses suitable for automation. (Analysis output is complete; cleanup
+   summaries remain for a follow-up.)
+5. ✅ Ensure analysis handles permission-denied paths gracefully.
 
 ### Completion criteria
 
-- `--analyze` never modifies the system.
-- Human and JSON reports agree on totals and statuses.
-- Users can identify what will be cleaned before they choose `--clean`.
+- ✅ `--analyze` never modifies the system.
+- ✅ Human and JSON analysis reports agree on totals and statuses.
+- ✅ Users can identify what will be cleaned before they choose `--clean`.
 
 ## Phase 5 — Profiles and targeted categories
 

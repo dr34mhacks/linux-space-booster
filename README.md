@@ -84,8 +84,8 @@ sudo ./linux-space-booster
 | `--help` | Display help information |
 
 Flags may be supplied in any valid order; for example, `--force --quick` and
-`--quick --force` are equivalent. `--json` is currently accepted only with
-`--analyze`; structured JSON output is planned for a later release.
+`--quick --force` are equivalent. `--analyze --json` emits filesystem,
+top-level-directory, and per-module byte values and statuses for automation.
 
 The cleanup engine currently registers these modules: package cache, system
 logs, temporary files, user caches, browser caches, thumbnails, Snap
